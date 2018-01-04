@@ -226,7 +226,7 @@ config-update () {
     }
 
     add_config () {
-        local found_config locations location config_name config_filepath
+        local found_config locations location config_name config_filepath config_absolute_filepath
 
         found_config=0
         if [[ -f "${CONFIGS_LOCATION_FILE}" ]]; then
@@ -254,12 +254,12 @@ config-update () {
             [[ -f "${config_filepath}" ]] && break
             echo -e "The file ${BOLD_LIGHT_BLUE}${config_filepath}${NC} does not exist. Please correct your input:"
         done
-        config_filepath="$(abspath "${config_filepath}")"
+        config_absolute_filepath="$(abspath "${config_filepath}")"
         popd >/dev/null 2>&1
         mkdir -p "$(dirname "${CONFIG_FILENAME}")" || \
             { ERROR_OUTPUT="The directory ${BOLD_LIGHT_BLUE}$(dirname "${CONFIG_FILENAME}")${NC} could not be created."; \
               return 9; }
-        cp "${config_filepath}" "${CONFIG_FILENAME}" || \
+        cp "${config_absolute_filepath}" "${CONFIG_FILENAME}" || \
             { ERROR_OUTPUT="The config file ${BOLD_LIGHT_BLUE}${config_filepath}${NC} could not be copied into the repository."; \
               return 10; }
         echo "${CONFIG_FILENAME}:${config_filepath}" >> "${CONFIGS_LOCATION_FILE}" && \
