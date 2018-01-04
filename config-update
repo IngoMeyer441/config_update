@@ -183,18 +183,23 @@ config-update () {
                 return_code="$?"
                 [[ "${return_code}" -eq 0 ]] || break
             fi
-            git branch --set-upstream-to "${remote_branch}" "${local_branch}" >/dev/null 2>&1 && \
-            git checkout "${local_branch}" >/dev/null 2>&1
+            git branch --set-upstream-to "${remote_branch}" "${local_branch}" >/dev/null 2>&1
             return_code="$?"
             [[ "${return_code}" -eq 0 ]] || break
-            if ! git merge --no-edit "${remote_branch}" >/dev/null 2>&1; then
-                echo -e "Automerging failed. Please resolve conflicts for the branch" \
-                    "${BOLD_LIGHT_CYAN}${local_branch}${NC}."
-                read -n 1 -p "Continue?" && \
-                git mergetool && \
-                git commit -a
+            if [[ "$(git rev-parse "refs/heads/${local_branch}")" != "$(git rev-parse "${ref}")" ]]; then
+                git checkout "${local_branch}" >/dev/null 2>&1
                 return_code="$?"
                 [[ "${return_code}" -eq 0 ]] || break
+                if ! git merge --no-edit "${remote_branch}" >/dev/null 2>&1; then
+                    echo -e "Automerging failed. Please resolve conflicts for the branch" \
+                        "${BOLD_LIGHT_CYAN}${local_branch}${NC}."
+                    read -n 1 -p "Continue?" && \
+                    git mergetool && \
+                    git commit -a
+                    return_code="$?"
+                    [[ "${return_code}" -eq 0 ]] || break
+                fi
+                echo -e "Updated branch ${BOLD_LIGHT_CYAN}${local_branch}${NC}."
             fi
         done
         [[ "${return_code}" -eq 0 ]] || \
