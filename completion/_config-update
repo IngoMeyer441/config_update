@@ -1,0 +1,47 @@
+#compdef config-update
+
+function _config-update {
+    local configs_dir configs_location_file optinal arguments location locations config_name config_names local_branch
+    local local_branches ref
+
+
+    configs_dir="${CONFIG_UPDATE_ROOT_DIR}/configs"
+    configs_location_file="${configs_dir}/.config_locations"
+
+    if (( CURRENT == 2 )); then
+        if [[ "${words[2]}" =~ ^-.* ]]; then
+            optional_arguments=(
+                {-h,--help}'[show help message]'
+                --version'[print version string]'
+            )
+            _arguments $optional_arguments
+        else
+            config_names=()
+            if [[ -f "${configs_location_file}" ]]; then
+                locations=( "${(f)$(<${configs_location_file})}" )
+                for location in "${locations[@]}"; do
+                    config_name="$(echo "${location}" | cut -d: -f1)"
+                    config_names+=( "${config_name}" )
+                done
+            fi
+            _arguments '*:config files:($config_names)'
+        fi
+    elif (( CURRENT == 3)); then
+        local_branches=()
+        if pushd "${configs_dir}" >/dev/null 2>&1; then
+            for ref in $(git for-each-ref --format='%(refname)' refs/heads/); do
+                [[ "${ref}" != "refs/heads/HEAD" ]] || continue
+                local_branch="$(echo "${ref}" | awk -F'/' '{ print $NF }')" && \
+                local_branches+=( "${local_branch}" )
+            done
+            popd >/dev/null 2>&1
+        fi
+        _arguments '*:branches:($local_branches)'
+    fi
+
+    return
+}
+
+_config-update "@"
+
+# vim: ft=zsh:tw=120
