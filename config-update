@@ -420,8 +420,7 @@ config-update () {
         create_config_symlinks
         return_code="$?"
     fi
-    cleanup
-    return_code="$?"
+    cleanup || return_code="$?"
     if [[ -n "${ERROR_OUTPUT}" ]]; then
         echo -e "${BOLD_LIGHT_RED}ERROR:${NC} ${ERROR_OUTPUT}"
     fi
