@@ -245,7 +245,11 @@ config-update () {
             "(absolute or relative to ~; tab completion is enabled)"
         pushd "${HOME}" >/dev/null 2>&1
         while true; do
-            read -e -p '> ' -i "${config_filepath}" config_filepath
+            if [[ "$(uname -s)" == "Darwin" ]]; then
+                read -e -p '> ' config_filepath
+            else
+                read -e -p '> ' -i "${config_filepath}" config_filepath
+            fi
             [[ "$?" -eq 0 ]] || { popd >/dev/null 2>&1; return 8; }
             [[ -f "${config_filepath}" ]] && break
             echo -e "The file ${BOLD_LIGHT_BLUE}${config_filepath}${NC} does not exist. Please correct your input:"
