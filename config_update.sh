@@ -1,6 +1,7 @@
 #!/bin/bash
 
 CONFIG_UPDATE_ROOT_DIR="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
+CONFIG_UPDATE_VERSION=( "0" "0" "0" )
 
 BOLD_LIGHT_RED='\033[91;1m'
 BOLD_LIGHT_GREEN='\033[92;1m'
@@ -70,6 +71,21 @@ config-update () {
         CONFIGS_DIR="${CONFIG_UPDATE_CONFIG_ROOT_DIR}/configs"
         CONFIGS_WORKING_DIR="${CONFIG_UPDATE_CONFIG_ROOT_DIR}/configs_working_directory"
         CONFIGS_LOCATION_FILE="${CONFIGS_WORKING_DIR}/.config_locations"
+        SHOW_HELP=0
+        SHOW_VERSION=0
+        while [[ "$1" =~ ^-.* ]]; do
+            case $1 in
+                -h|--help)
+                    SHOW_HELP=1
+                    ;;
+                --version)
+                    SHOW_VERSION=1
+                    ;;
+                *)
+                    echo "Ignoring unkown option '$1'."
+            esac
+            shift
+        done
         if [[ "$1" = "" && (! -d "${CONFIGS_DIR}" || \
               "$(cd "${CONFIGS_DIR}" && git ls-files --modified)" = "") ]]; then
             FETCH_REMOTE_ONLY=1
@@ -85,6 +101,24 @@ config-update () {
         [[ -z "${VISUAL}" ]] && VISUAL="vim"
 
         return 0
+    }
+
+    show_help () {
+        echo "config-update - Manage your config files and their differences between multiple hosts"
+        echo
+        echo "Usage: config-update [-h | --help | --version] [config-file [branch]]"
+        echo
+        echo "optional arguments:"
+        echo " -h, --help   show this help message and exit"
+        echo " --version    print the version number and exit"
+        echo
+        echo "positional arguments:"
+        echo " config-file  conig file (Git name) you want to alter"
+        echo " branch       branch you want to update (default: master)"
+    }
+
+    show_version () {
+        (IFS='.'; echo "config-update v${CONFIG_UPDATE_VERSION[*]}")
     }
 
     create_working_copy_and_fetch_remote_configs () {
@@ -365,6 +399,13 @@ config-update () {
     }
 
     init_variables "$@" && \
+    if (( SHOW_HELP )); then
+        show_help
+        return "$?"
+    elif (( SHOW_VERSION )); then
+        show_version
+        return "$?"
+    fi
     create_working_copy_and_fetch_remote_configs
     return_code="$?"
     if ! (( FETCH_REMOTE_ONLY )) && [[ "${return_code}" -eq 0 ]]; then
