@@ -230,7 +230,6 @@ config-update () {
         # Verify that required refs (`master`, `${CONFIG_UPDATE_BRANCH}` and `${EDIT_BRANCH}`) exist
         local_branches=()
         for ref in $(git for-each-ref --format='%(refname)' refs/heads/); do
-            [[ "${ref}" != "refs/heads/HEAD" ]] || continue
             local_branch="$(echo "${ref}" | awk -F'/' '{ print $NF }')" && \
             local_branches+=( "${local_branch}" )
         done
@@ -353,8 +352,7 @@ config-update () {
 
             # Find all descendants and closest descendants of the given `base_branch`
             for ref in $(git for-each-ref --format='%(refname)' refs/heads/); do
-                if [[ "${ref}" != "refs/heads/HEAD" ]] && \
-                  git merge-base --is-ancestor "${base_branch}~" "${ref}" && \
+                if git merge-base --is-ancestor "${base_branch}~" "${ref}" && \
                   [[ "$(git rev-parse "${base_branch}~")" != "$(git rev-parse "${ref}")" ]] && \
                   [[ "$(git rev-parse "${base_branch}")" != "$(git rev-parse "${ref}")" ]]; then
                     descendants+=( "${ref#refs/heads/}" )
