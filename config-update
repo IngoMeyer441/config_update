@@ -270,10 +270,16 @@ config-update () {
 
         # Show diff stats if the local repository existed before
         if (( fetched_only )); then
-            git diff --stat "${old_head_ref}" "HEAD"
+            echo -n "Set up a working copy of the config directory and fetched remote changes. "
+            if [[ "$(git rev-parse "HEAD")" != "${old_head_ref}" ]]; then
+                echo "The following files got updates:"
+                git diff --stat "${old_head_ref}" "HEAD"
+            else
+                echo "No files got updates."
+            fi
+        else
+            echo "Set up a fresh working copy of the config directory."
         fi
-
-        echo "Set up a working copy of the config directory and fetched remote changes."
         if (( stashed_changes )); then
             echo "Restored uncommitted changes."
         fi
