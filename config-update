@@ -439,7 +439,7 @@ config-update () {
             config_filepath="$(abspath "${config_filepath}")"
             popd >/dev/null 2>&1
             if [[ "${CONFIGS_DIR}" =~ ^${HOME}.* ]] && [[ "${config_filepath}" =~ ^${HOME}.* ]]; then
-                link_target="$(relpath "${CONFIGS_DIR}/${config_name}" "${HOME}")"
+                link_target="$(relpath "${CONFIGS_DIR}/${config_name}" "$(dirname "${config_filepath}")")"
             else
                 link_target="${CONFIGS_DIR}/${config_name}"
             fi
