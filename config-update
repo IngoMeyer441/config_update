@@ -121,8 +121,8 @@ config-update () {
     }
 
     create_working_copy_and_fetch_remote_configs () {
-        local return_code fetched_only stashed_changes ref local_branch local_branches remote_branch branches_to_verify
-        local prompt_script_path base_branch
+        local return_code fetched_only stashed_changes old_head_ref ref local_branch local_branches remote_branch
+        local branches_to_verify prompt_script_path base_branch
 
         return_code=0
 
@@ -172,6 +172,9 @@ config-update () {
         else
             stashed_changes=0
         fi
+
+        # Save HEAD ref before modifying it (needed for diff stats at the end of this function)
+        old_head_ref="$(git rev-parse "HEAD")"
 
         # Update local branches and guarantee that all remote branches are checked out as local tracking branches
         for ref in $(git for-each-ref --format='%(refname)' refs/remotes/origin/); do
@@ -268,7 +271,7 @@ config-update () {
 
         # Show diff stats if the local repository existed before
         if (( fetched_only )); then
-            git diff --stat "HEAD@{1}" "HEAD"
+            git diff --stat "${old_head_ref}" "HEAD"
         fi
 
         echo "Set up a working copy of the config directory and fetched remote changes."
