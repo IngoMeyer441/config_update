@@ -18,6 +18,10 @@ config-update () {
         echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
     }
 
+    relpath () {
+        python -c 'import os, sys; print(os.path.relpath(*sys.argv[1:]))' "$1" "$2"
+    }
+
     write_prompt_script () {
         local temp_prompt_directory
 
@@ -421,7 +425,7 @@ config-update () {
     }
 
     create_config_symlinks () {
-        local locations location config_name config_filepath
+        local locations location config_name config_filepath link_target
 
         [[ -f "${CONFIGS_LOCATION_FILE}" ]] || return 0
         IFS=$'\n' read -d '' -r -a locations < "${CONFIGS_LOCATION_FILE}"
@@ -431,10 +435,15 @@ config-update () {
             pushd "${HOME}" >/dev/null 2>&1
             config_filepath="$(abspath "${config_filepath}")"
             popd >/dev/null 2>&1
+            if [[ "${CONFIGS_DIR}" =~ ^${HOME}.* ]] && [[ "${config_filepath}" =~ ^${HOME}.* ]]; then
+                link_target="$(relpath "${CONFIGS_DIR}/${config_name}" "${HOME}")"
+            else
+                link_target="${CONFIGS_DIR}/${config_name}"
+            fi
             if [[ -L "${config_filepath}" ]]; then
-                if [[ "$(readlink -- "${config_filepath}")" != "${CONFIGS_DIR}/${config_name}" ]]; then
+                if [[ "$(readlink -- "${config_filepath}")" != "${link_target}" ]]; then
                     rm -f "${config_filepath}" && \
-                    ln -s "${CONFIGS_DIR}/${config_name}" "${config_filepath}"
+                    ln -s "${link_target}" "${config_filepath}"
                     [[ "$?" -eq 0 ]] || \
                         { ERROR_OUTPUT="Could not modify the existing symbolic link ${BOLD_LIGHT_BLUE}${config_filepath}${NC}."; \
                           return 24; }
@@ -445,7 +454,7 @@ config-update () {
                         { ERROR_OUTPUT="Could not create a backup of the old config file ${BOLD_LIGHT_BLUE}${config_filepath}${NC}."; \
                           return 25; }
                 fi
-                ln -s "${CONFIGS_DIR}/${config_name}" "${config_filepath}" || \
+                ln -s "${link_target}" "${config_filepath}" || \
                     { ERROR_OUTPUT="Could not create a symbolic link for the config file ${BOLD_LIGHT_BLUE}${config_filepath}${NC}."; \
                       return 26; }
             fi
