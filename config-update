@@ -1,7 +1,7 @@
 #!/bin/bash
 
 CONFIG_UPDATE_ROOT_DIR="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
-CONFIG_UPDATE_VERSION=( "0" "1" "7" )
+CONFIG_UPDATE_VERSION=( "0" "1" "8" )
 
 BOLD_LIGHT_RED='\033[91;1m'
 BOLD_LIGHT_GREEN='\033[92;1m'
@@ -439,7 +439,7 @@ config-update () {
             config_filepath="$(abspath "${config_filepath}")"
             popd >/dev/null 2>&1
             if [[ "${CONFIGS_DIR}" =~ ^${HOME}.* ]] && [[ "${config_filepath}" =~ ^${HOME}.* ]]; then
-                link_target="$(relpath "${CONFIGS_DIR}/${config_name}" "${HOME}")"
+                link_target="$(relpath "${CONFIGS_DIR}/${config_name}" "$(dirname "${config_filepath}")")"
             else
                 link_target="${CONFIGS_DIR}/${config_name}"
             fi
