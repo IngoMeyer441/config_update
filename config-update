@@ -49,8 +49,6 @@ config-update () {
 			    if not vocabulary:
 			        print('You need at least one keyword for completion.', file=sys.stderr)
 			        sys.exit(2)
-			    readline.parse_and_bind('set show-all-if-ambiguous on')
-			    readline.parse_and_bind('tab: menu-complete')
 			    readline.set_completer(make_completer(vocabulary))
 			    try:
 			        stdout_backup = sys.stdout
