@@ -1,7 +1,7 @@
 #!/bin/bash
 
 CONFIG_UPDATE_ROOT_DIR="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
-CONFIG_UPDATE_VERSION=( "0" "1" "8" )
+CONFIG_UPDATE_VERSION=( "0" "1" "9" )
 
 BOLD_LIGHT_RED='\033[91;1m'
 BOLD_LIGHT_GREEN='\033[92;1m'
@@ -49,8 +49,6 @@ config-update () {
 			    if not vocabulary:
 			        print('You need at least one keyword for completion.', file=sys.stderr)
 			        sys.exit(2)
-			    readline.parse_and_bind('set show-all-if-ambiguous on')
-			    readline.parse_and_bind('tab: menu-complete')
 			    readline.set_completer(make_completer(vocabulary))
 			    try:
 			        stdout_backup = sys.stdout
