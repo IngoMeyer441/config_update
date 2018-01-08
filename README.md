@@ -142,11 +142,11 @@ to install to `/opt/config_update/bin/`.
     ```
 
     to update a configuration file on the given branch. If branch is omitted, `master` is used. The tool opens the
-    config file with the editor configured by the `VISUAL` environment variable. After closing the editor, you will be
-    prompted for a commit message and a new Git commit will be created. If you updated a branch that serves as a
-    template branch (for example `master`), all subsequent branches will be automatically updated by merging your newly
-    created commit. In the case of merge conflicts `git mergetool` is run to resolve each conflict. Afterwards, changes
-    are pushed to your central repository.
+    config file with the editor configured by the `VISUAL` environment variable. After closing the editor, you can alter
+    another config file or you will be prompted for a commit message and a new Git commit will be created. If you
+    updated a branch that serves as a template branch (for example `master`), all subsequent branches will be
+    automatically updated by merging your newly created commit. In the case of merge conflicts `git mergetool` is run to
+    resolve each conflict. Afterwards, changes are pushed to your central repository.
 
     If the given config file does not exist, you are prompted for the file location on disk. In that case a new config
     file is added to the repository and to `.config_locations`.
