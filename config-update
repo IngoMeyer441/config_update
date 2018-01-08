@@ -1,7 +1,7 @@
 #!/bin/bash
 
 CONFIG_UPDATE_ROOT_DIR="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
-CONFIG_UPDATE_VERSION=( "0" "1" "9" )
+CONFIG_UPDATE_VERSION=( "0" "1" "10" )
 
 BOLD_LIGHT_RED='\033[91;1m'
 BOLD_LIGHT_GREEN='\033[92;1m'
@@ -20,6 +20,28 @@ config-update () {
 
     relpath () {
         python -c 'import os, sys; print(os.path.relpath(*sys.argv[1:]))' "$1" "$2"
+    }
+
+    get_user_choice () {
+        local prompt_string default_choice user_choice
+
+        prompt_string="$1"
+        default_choice="$2"
+        while true; do
+            read -p "${prompt_string}" -s -n 1 user_choice
+            echo
+            [[ -n "${user_choice}" ]] || user_choice="${default_choice}"
+            user_choice="$(echo "${user_choice}" | awk '{print tolower($0)}')"
+            case ${user_choice} in
+                [yn])
+                    break
+                    ;;
+                *)
+                    echo "Please answer y or n."
+                    ;;
+            esac
+        done
+        [[ "${user_choice}" == "${default_choice}" ]]
     }
 
     write_prompt_script () {
@@ -347,10 +369,35 @@ config-update () {
             { ERROR_OUTPUT="The directory ${BOLD_LIGHT_BLUE}$(dirname "${CONFIG_FILENAME}")${NC} cannot be created."; \
               return 17; }
         ${VISUAL} "${CONFIG_FILENAME}" || { ERROR_OUTPUT="Your editor exited with a non-zero exit code."; return 18; }
-        git add -f "${CONFIG_FILENAME}" && \
-        git commit || { ERROR_OUTPUT="Could not commit changes."; return 19; }
+        git add -f "${CONFIG_FILENAME}" || { ERROR_OUTPUT="Could not add changes."; return 19; }
 
-        echo -e "Committed changes to ${BOLD_LIGHT_BLUE}${CONFIG_FILENAME}${NC}."
+        echo -e "Added ${BOLD_LIGHT_BLUE}${CONFIG_FILENAME}${NC} to the staging area."
+        return 0
+    }
+
+    read_config_choice () {
+        local config_name config_names location locations prompt_script_path return_code
+        config_names=()
+        if [[ -f "${CONFIGS_LOCATION_FILE}" ]]; then
+            IFS=$'\n' read -d '' -r -a locations < "${CONFIGS_LOCATION_FILE}"
+            for location in "${locations[@]}"; do
+                config_name="$(echo "${location}" | cut -d: -f1)"
+                config_names+=( "${config_name}" )
+            done
+        fi
+        prompt_script_path="$(write_prompt_script)"
+        return_code="$?"
+        [[ "${return_code}" -eq 0 ]] || \
+            { ERROR_OUTPUT="Internal error, could not create temporary script file."; return 20; }
+        >&2 echo -e "Which ${BOLD_LIGHT_GREEN}config file${NC} do you want to edit next?\n (tab completion is enabled)"
+        config_name="$("${prompt_script_path}" "${config_names[@]}")" || return 21
+        echo "${config_name}"
+    }
+
+    commit_config () {
+        git commit || { ERROR_OUTPUT="Could not commit changes."; return 22; }
+
+        echo -e "Committed staged changes."
         return 0
     }
 
@@ -388,14 +435,14 @@ config-update () {
             # -> The change (commit) is propagated step by step
             for descendant in "${closest_descendants[@]}"; do
                 git checkout "${descendant}" >/dev/null 2>&1 || \
-                    { ERROR_OUTPUT="Could not check out ${BOLD_LIGHT_CYAN}${descendant}${NC} for merging."; return 20; }
+                    { ERROR_OUTPUT="Could not check out ${BOLD_LIGHT_CYAN}${descendant}${NC} for merging."; return 23; }
                 if ! git merge --no-edit "${base_branch}" >/dev/null 2>&1; then
                     echo -e "Automerging failed. Please resolve conflicts for the branch" \
                         "${BOLD_LIGHT_CYAN}${descendant}${NC}."
                     read -n 1 -p "Continue?" && \
                     git mergetool && \
                     git commit -a
-                    [[ "$?" -eq 0 ]] || { ERROR_OUTPUT="Merge is not completed"; return 21; }
+                    [[ "$?" -eq 0 ]] || { ERROR_OUTPUT="Merge is not completed"; return 24; }
                 fi
                 echo -e "Merged ${BOLD_LIGHT_CYAN}${base_branch}${NC} into ${BOLD_LIGHT_CYAN}${descendant}${NC}."
                 merge_config_recursive "${descendant}"
@@ -409,17 +456,17 @@ config-update () {
     }
 
     push_config () {
-        git push || { ERROR_OUTPUT="Pushing new commits failed"; return 22; }
+        git push || { ERROR_OUTPUT="Pushing new commits failed"; return 25; }
     }
 
     apply_working_copy_changes () {
         git checkout "${CONFIG_UPDATE_BRANCH}" >/dev/null 2>&1 || \
-            { ERROR_OUTPUT="Could not checkout ${BOLD_LIGHT_CYAN}${CONFIG_UPDATE_BRANCH}${NC}."; return 23; }
+            { ERROR_OUTPUT="Could not checkout ${BOLD_LIGHT_CYAN}${CONFIG_UPDATE_BRANCH}${NC}."; return 26; }
         pushd .. >/dev/null 2>&1 && \
         rm -rf "${CONFIGS_DIR}" && \
         cp -r "${CONFIGS_WORKING_DIR}" "${CONFIGS_DIR}" && \
         popd >/dev/null 2>&1
-        [[ "$?" -eq 0 ]] || { ERROR_OUTPUT="Could not apply working copy changes (copy failed)."; return 24; }
+        [[ "$?" -eq 0 ]] || { ERROR_OUTPUT="Could not apply working copy changes (copy failed)."; return 27; }
 
         echo "Applied the working copy changes to the real config files."
         return 0
@@ -447,17 +494,17 @@ config-update () {
                     ln -s "${link_target}" "${config_filepath}"
                     [[ "$?" -eq 0 ]] || \
                         { ERROR_OUTPUT="Could not modify the existing symbolic link ${BOLD_LIGHT_BLUE}${config_filepath}${NC}."; \
-                          return 25; }
+                          return 28; }
                 fi
             else
                 if [[ -f "${config_filepath}" ]]; then
                     mv "${config_filepath}" "${config_filepath}.bak" || \
                         { ERROR_OUTPUT="Could not create a backup of the old config file ${BOLD_LIGHT_BLUE}${config_filepath}${NC}."; \
-                          return 26; }
+                          return 29; }
                 fi
                 ln -s "${link_target}" "${config_filepath}" || \
                     { ERROR_OUTPUT="Could not create a symbolic link for the config file ${BOLD_LIGHT_BLUE}${config_filepath}${NC}."; \
-                      return 27; }
+                      return 30; }
             fi
         done
 
@@ -467,7 +514,7 @@ config-update () {
 
     cleanup () {
         popd >/dev/null 2>&1
-        rm -rf "${CONFIGS_WORKING_DIR}" || { ERROR_OUTPUT="Could not cleanup the working directory"; return 28; }
+        rm -rf "${CONFIGS_WORKING_DIR}" || { ERROR_OUTPUT="Could not cleanup the working directory"; return 31; }
 
         echo "Cleaned the working directory."
         return 0
@@ -484,11 +531,22 @@ config-update () {
     create_working_copy_and_fetch_remote_configs
     return_code="$?"
     if ! (( FETCH_REMOTE_ONLY )) && [[ "${return_code}" -eq 0 ]]; then
-        add_config && \
-        edit_config && \
-        merge_config && \
-        push_config
-        return_code="$?"
+        while true; do
+            add_config && \
+            edit_config
+            return_code="$?"
+            [[ "${return_code}" -eq 0 ]] || break
+            get_user_choice "Edit another file? [y/N] " "n" && break
+            CONFIG_FILENAME="$(read_config_choice)"
+            return_code="$?"
+            [[ "${return_code}" -eq 0 ]] || break
+        done
+        if [[ "${return_code}" -eq 0 ]]; then
+            commit_config && \
+            merge_config && \
+            push_config
+            return_code="$?"
+        fi
     fi
     if [[ "${return_code}" -eq 0 ]]; then
         apply_working_copy_changes && \
