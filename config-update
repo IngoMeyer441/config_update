@@ -481,6 +481,9 @@ config-update () {
             config_name="$(echo "${location}" | cut -d: -f1)"
             config_filepath="$(echo "${location}" | cut -d: -f2)"
             pushd "${HOME}" >/dev/null 2>&1
+            mkdir -p "$(dirname "${config_filepath}")" || \
+                { ERROR_OUTPUT="Could not create the needed directory structure for ${BOLD_LIGHT_BLUE}${config_filepath}${NC}."; \
+                  popd >/dev/null 2>&1; return 28; }
             config_filepath="$(abspath "${config_filepath}")"
             popd >/dev/null 2>&1
             if [[ "${CONFIGS_DIR}" =~ ^${HOME}.* ]] && [[ "${config_filepath}" =~ ^${HOME}.* ]]; then
@@ -494,17 +497,17 @@ config-update () {
                     ln -s "${link_target}" "${config_filepath}"
                     [[ "$?" -eq 0 ]] || \
                         { ERROR_OUTPUT="Could not modify the existing symbolic link ${BOLD_LIGHT_BLUE}${config_filepath}${NC}."; \
-                          return 28; }
+                          return 29; }
                 fi
             else
                 if [[ -f "${config_filepath}" ]]; then
                     mv "${config_filepath}" "${config_filepath}.bak" || \
                         { ERROR_OUTPUT="Could not create a backup of the old config file ${BOLD_LIGHT_BLUE}${config_filepath}${NC}."; \
-                          return 29; }
+                          return 30; }
                 fi
                 ln -s "${link_target}" "${config_filepath}" || \
                     { ERROR_OUTPUT="Could not create a symbolic link for the config file ${BOLD_LIGHT_BLUE}${config_filepath}${NC}."; \
-                      return 30; }
+                      return 31; }
             fi
         done
 
@@ -514,7 +517,7 @@ config-update () {
 
     cleanup () {
         popd >/dev/null 2>&1
-        rm -rf "${CONFIGS_WORKING_DIR}" || { ERROR_OUTPUT="Could not cleanup the working directory"; return 31; }
+        rm -rf "${CONFIGS_WORKING_DIR}" || { ERROR_OUTPUT="Could not cleanup the working directory"; return 32; }
 
         echo "Cleaned the working directory."
         return 0
