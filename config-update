@@ -105,7 +105,7 @@ config-update () {
             { ERROR_OUTPUT="The branch ${BOLD_LIGHT_CYAN}${branch}${NC} cannot be checked out."; return 2; }
         # Apply stashed changes again if any
         if (( stashed_changes )); then
-            if ! git stash pop >/dev/null 2>&1; then
+            if ! git stash pop --index >/dev/null 2>&1; then
                 echo -e "Applying stashed changes failed. Please resolve conflicts."
                 read -n 1 -p "Continue?" && \
                 git mergetool && \
