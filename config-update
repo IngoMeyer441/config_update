@@ -1,7 +1,7 @@
 #!/bin/bash
 
 CONFIG_UPDATE_ROOT_DIR="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
-CONFIG_UPDATE_VERSION=( "0" "1" "13" )
+CONFIG_UPDATE_VERSION=( "0" "1" "14" )
 
 BOLD_LIGHT_RED='\033[91;1m'
 BOLD_LIGHT_GREEN='\033[92;1m'
@@ -88,31 +88,45 @@ config-update () {
         echo "${temp_prompt_directory}/prompt.py"
     }
 
-    switch_git_branches_with_changes () {
-        local branch stashed_changes
-
-        branch="$1"
+    stash_changes () {
         # Check for local changes that have not been committed yet
         if [[ "$(git status --porcelain | awk '$1 != "??" { print $0 }')" != "" ]]; then
             git stash >/dev/null 2>&1 || \
                 { ERROR_OUTPUT="Could not stash local changes in the config repository."; return 1; }
-            stashed_changes=1
+            STASHED_CHANGES=1
         else
-            stashed_changes=0
+            STASHED_CHANGES=0
         fi
-        # Switch branches
-        git checkout "${branch}" >/dev/null 2>&1 || \
-            { ERROR_OUTPUT="The branch ${BOLD_LIGHT_CYAN}${branch}${NC} cannot be checked out."; return 2; }
+
+        return 0
+    }
+
+    pop_changes () {
         # Apply stashed changes again if any
-        if (( stashed_changes )); then
+        if (( STASHED_CHANGES )); then
             if ! git stash pop --index >/dev/null 2>&1; then
                 echo -e "Applying stashed changes failed. Please resolve conflicts."
                 read -n 1 -p "Continue?" && \
                 git mergetool && \
                 git reset && \
-                git stash drop || return 3
+                git stash drop || \
+                { ERROR_OUTPUT="Applying stashed changes failed."; return 1; }
             fi
+            STASHED_CHANGES=0
         fi
+
+        return 0
+    }
+
+    switch_git_branches_with_changes () {
+        local branch
+
+        branch="$1"
+        stash_changes || return 1
+        # Switch branches
+        git checkout "${branch}" >/dev/null 2>&1 || \
+            { ERROR_OUTPUT="The branch ${BOLD_LIGHT_CYAN}${branch}${NC} cannot be checked out."; return 2; }
+        pop_changes || return 3
 
         return 0
     }
@@ -433,8 +447,12 @@ config-update () {
 
     commit_config () {
         git commit || { ERROR_OUTPUT="Could not commit changes."; return 26; }
+        stash_changes || { ERROR_OUTPUT="Could not stash uncommitted changes."; return 27; }
 
         echo -e "Committed staged changes."
+        if (( STASHED_CHANGES )); then
+            echo -e "Stashed unstaged changes."
+        fi
         return 0
     }
 
@@ -472,14 +490,14 @@ config-update () {
             # -> The change (commit) is propagated step by step
             for descendant in "${closest_descendants[@]}"; do
                 git checkout "${descendant}" >/dev/null 2>&1 || \
-                    { ERROR_OUTPUT="Could not check out ${BOLD_LIGHT_CYAN}${descendant}${NC} for merging."; return 27; }
+                    { ERROR_OUTPUT="Could not check out ${BOLD_LIGHT_CYAN}${descendant}${NC} for merging."; return 28; }
                 if ! git merge --no-edit "${base_branch}" >/dev/null 2>&1; then
                     echo -e "Automerging failed. Please resolve conflicts for the branch" \
                         "${BOLD_LIGHT_CYAN}${descendant}${NC}."
                     read -n 1 -p "Continue?" && \
                     git mergetool && \
                     git commit -a
-                    [[ "$?" -eq 0 ]] || { ERROR_OUTPUT="Merge is not completed"; return 28; }
+                    [[ "$?" -eq 0 ]] || { ERROR_OUTPUT="Merge is not completed"; return 29; }
                 fi
                 echo -e "Merged ${BOLD_LIGHT_CYAN}${base_branch}${NC} into ${BOLD_LIGHT_CYAN}${descendant}${NC}."
                 merge_config_recursive "${descendant}"
@@ -493,17 +511,18 @@ config-update () {
     }
 
     push_config () {
-        git push || { ERROR_OUTPUT="Pushing new commits failed"; return 29; }
+        git push || { ERROR_OUTPUT="Pushing new commits failed"; return 30; }
     }
 
     apply_working_copy_changes () {
         git checkout "${CONFIG_UPDATE_BRANCH}" >/dev/null 2>&1 || \
-            { ERROR_OUTPUT="Could not checkout ${BOLD_LIGHT_CYAN}${CONFIG_UPDATE_BRANCH}${NC}."; return 30; }
+            { ERROR_OUTPUT="Could not checkout ${BOLD_LIGHT_CYAN}${CONFIG_UPDATE_BRANCH}${NC}."; return 31; }
+        pop_changes || return 32
         pushd .. >/dev/null 2>&1 && \
         rm -rf "${CONFIGS_DIR}" && \
         cp -r "${CONFIGS_WORKING_DIR}" "${CONFIGS_DIR}" && \
         popd >/dev/null 2>&1
-        [[ "$?" -eq 0 ]] || { ERROR_OUTPUT="Could not apply working copy changes (copy failed)."; return 31; }
+        [[ "$?" -eq 0 ]] || { ERROR_OUTPUT="Could not apply working copy changes (copy failed)."; return 33; }
 
         echo "Applied the working copy changes to the real config files."
         return 0
@@ -520,7 +539,7 @@ config-update () {
             pushd "${HOME}" >/dev/null 2>&1
             mkdir -p "$(dirname "${config_filepath}")" || \
                 { ERROR_OUTPUT="Could not create the needed directory structure for ${BOLD_LIGHT_BLUE}${config_filepath}${NC}."; \
-                  popd >/dev/null 2>&1; return 32; }
+                  popd >/dev/null 2>&1; return 34; }
             config_filepath="$(abspath "${config_filepath}")"
             popd >/dev/null 2>&1
             if [[ "${CONFIGS_DIR}" =~ ^${HOME}.* ]] && [[ "${config_filepath}" =~ ^${HOME}.* ]]; then
@@ -534,17 +553,17 @@ config-update () {
                     ln -s "${link_target}" "${config_filepath}"
                     [[ "$?" -eq 0 ]] || \
                         { ERROR_OUTPUT="Could not modify the existing symbolic link ${BOLD_LIGHT_BLUE}${config_filepath}${NC}."; \
-                          return 33; }
+                          return 35; }
                 fi
             else
                 if [[ -f "${config_filepath}" ]]; then
                     mv "${config_filepath}" "${config_filepath}.bak" || \
                         { ERROR_OUTPUT="Could not create a backup of the old config file ${BOLD_LIGHT_BLUE}${config_filepath}${NC}."; \
-                          return 34; }
+                          return 36; }
                 fi
                 ln -s "${link_target}" "${config_filepath}" || \
                     { ERROR_OUTPUT="Could not create a symbolic link for the config file ${BOLD_LIGHT_BLUE}${config_filepath}${NC}."; \
-                      return 35; }
+                      return 37; }
             fi
         done
 
@@ -554,7 +573,7 @@ config-update () {
 
     cleanup () {
         popd >/dev/null 2>&1
-        rm -rf "${CONFIGS_WORKING_DIR}" || { ERROR_OUTPUT="Could not cleanup the working directory"; return 36; }
+        rm -rf "${CONFIGS_WORKING_DIR}" || { ERROR_OUTPUT="Could not cleanup the working directory"; return 38; }
 
         echo "Cleaned the working directory."
         return 0
