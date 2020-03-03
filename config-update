@@ -1,7 +1,7 @@
 #!/bin/bash
 
 CONFIG_UPDATE_ROOT_DIR="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
-CONFIG_UPDATE_VERSION=( "0" "1" "15" )
+CONFIG_UPDATE_VERSION=( "0" "1" "16" )
 
 BOLD_LIGHT_RED='\033[91;1m'
 BOLD_LIGHT_GREEN='\033[92;1m'
@@ -44,12 +44,16 @@ config-update () {
         [[ "${user_choice}" == "${default_choice}" ]]
     }
 
-    write_prompt_script () {
-        local temp_prompt_directory
+    prompt_with_completion () {
+        local output output_filepath out_variable_name script_filepath return_code temp_prompt_directory
 
+        out_variable_name="$1"
+        shift
         temp_prompt_directory="$(mktemp -d)"
         [[ -n "${temp_prompt_directory}" ]] || return 1
-        cat <<- EOF > "${temp_prompt_directory}/prompt.py"
+        output_filepath="${temp_prompt_directory}/out"
+        script_filepath="${temp_prompt_directory}/prompt.py"
+        cat <<- EOF > "${script_filepath}"
 			#!/usr/bin/env python
 			# -*- coding: utf-8 -*-
 			from __future__ import absolute_import
@@ -58,7 +62,7 @@ config-update () {
 			from __future__ import unicode_literals
 			import readline
 			import sys
-			PY2 = (sys.version_info.major < 3)
+			PY2 = sys.version_info.major < 3
 			if PY2:
 			    input = raw_input
 			def make_completer(vocabulary):
@@ -67,25 +71,32 @@ config-update () {
 			        return results[state] + " "
 			    return custom_complete
 			def main():
-			    vocabulary = sys.argv[1:]
-			    if not vocabulary:
-			        print('You need at least one keyword for completion.', file=sys.stderr)
+			    if (len(sys.argv)) < 3:
+			        print("Please pass an output file and at least one keyword for completion.", file=sys.stderr)
 			        sys.exit(2)
+			    output_filepath = sys.argv[1]
+			    vocabulary = sys.argv[2:]
 			    readline.set_completer(make_completer(vocabulary))
 			    try:
-			        stdout_backup = sys.stdout
-			        sys.stdout = sys.stderr
-			        result = input('> ').strip()
-			        sys.stdout = stdout_backup
-			        print(result)
+			        with open(output_filepath, "w") as output_file:
+			            result = input("> ").strip()
+			            print(result, file=output_file)
+			    except IOError as e:
+			        print(e, file=sys.stderr)
+			        sys.exit(1)
 			    except (EOFError, KeyboardInterrupt):
 			        sys.exit(1)
-			if __name__ == '__main__':
+			if __name__ == "__main__":
 			    main()
 		EOF
-        [[ "$?" -eq 0 ]] || return 1
-        chmod +x "${temp_prompt_directory}/prompt.py" || return 1
-        echo "${temp_prompt_directory}/prompt.py"
+        python "${script_filepath}" "${output_filepath}" "$@"
+        return_code="$?"
+        if [[ "${return_code}" -eq 0 ]]; then
+            output=$(<"${output_filepath}")
+            eval "${out_variable_name}=\"${output}\""
+        fi
+        rm -rf "${temp_prompt_directory}" || return
+        return "${return_code}"
     }
 
     stash_changes () {
@@ -312,17 +323,12 @@ config-update () {
                     { ERROR_OUTPUT="Local branch ${BOLD_LIGHT_CYAN}${local_branch}${NC} is missing."; break; }
                 echo -e "The required branch ${BOLD_LIGHT_CYAN}${local_branch}${NC} does not exist." \
                     "On which ${BOLD_LIGHT_GREEN}branch${NC} should it be based on?\n (tab completion is enabled)"
-                prompt_script_path="$(write_prompt_script)"
-                return_code="$?"
-                [[ "${return_code}" -eq 0 ]] || \
-                    { ERROR_OUTPUT="Internal error, could not create temporary script file."; break; }
                 while true; do
-                    base_branch="$("${prompt_script_path}" "${local_branches[@]}")" || return 10
+                    prompt_with_completion "base_branch" "${local_branches[@]}" || return 10
                     git show-ref --quiet --verify "refs/heads/${base_branch}" && break
                     echo -e "The branch ${BOLD_LIGHT_CYAN}${base_branch}${NC} does not exist." \
                         "Please correct your input:"
                 done
-                rm -rf "$(dirname "${prompt_script_path}")"
                 git update-ref "refs/heads/${local_branch}" "refs/heads/${base_branch}" && \
                 git push -u origin "${local_branch}"
                 return_code="$?"
@@ -427,7 +433,8 @@ config-update () {
     }
 
     read_config_choice () {
-        local config_name config_names location locations prompt_script_path return_code
+        local config_name config_names location locations out_variable_name prompt_script_path return_code
+        out_variable_name="$1"
         config_names=()
         if [[ -f "${CONFIGS_LOCATION_FILE}" ]]; then
             IFS=$'\n' read -d '' -r -a locations < "${CONFIGS_LOCATION_FILE}"
@@ -436,13 +443,9 @@ config-update () {
                 config_names+=( "${config_name}" )
             done
         fi
-        prompt_script_path="$(write_prompt_script)"
-        return_code="$?"
-        [[ "${return_code}" -eq 0 ]] || \
-            { ERROR_OUTPUT="Internal error, could not create temporary script file."; return 24; }
         >&2 echo -e "Which ${BOLD_LIGHT_GREEN}config file${NC} do you want to edit next?\n (tab completion is enabled)"
-        config_name="$("${prompt_script_path}" "${config_names[@]}")" || return 25
-        echo "${config_name}"
+        prompt_with_completion "config_name" "${config_names[@]}" || return 25
+        eval "${out_variable_name}=\"${config_name}\""
     }
 
     commit_config () {
@@ -596,7 +599,7 @@ config-update () {
             return_code="$?"
             [[ "${return_code}" -eq 0 ]] || break
             get_user_choice "Edit another file? [y/N] " "n" && break
-            CONFIG_FILENAME="$(read_config_choice)"
+            read_config_choice "CONFIG_FILENAME"
             return_code="$?"
             [[ "${return_code}" -eq 0 ]] || break
         done
