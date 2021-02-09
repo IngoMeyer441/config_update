@@ -1,7 +1,7 @@
 #!/bin/bash
 
 CONFIG_UPDATE_ROOT_DIR="$(cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd)"
-CONFIG_UPDATE_VERSION=( "0" "1" "16" )
+CONFIG_UPDATE_VERSION=( "0" "1" "17" )
 
 BOLD_LIGHT_RED='\033[91;1m'
 BOLD_LIGHT_GREEN='\033[92;1m'
@@ -203,6 +203,10 @@ config-update () {
         local branches_to_verify prompt_script_path base_branch
 
         return_code=0
+
+        # Cleanup the working copy directory in any case when this script exits
+        # `cleanup` can be called multiple times
+        trap cleanup EXIT
 
         [[ "${CONFIG_UPDATE_CONFIGS_REPO_URL}" != "" ]] || \
             { ERROR_OUTPUT="The variable ${BOLD_LIGHT_MAGENTA}CONFIG_UPDATE_CONFIGS_REPO_URL${NC} is not set."; \
@@ -575,10 +579,10 @@ config-update () {
     }
 
     cleanup () {
-        popd >/dev/null 2>&1
-        rm -rf "${CONFIGS_WORKING_DIR}" || { ERROR_OUTPUT="Could not cleanup the working directory"; return 38; }
-
-        echo "Cleaned the working directory."
+        if [[ -d "${CONFIGS_WORKING_DIR}" ]]; then
+            rm -rf "${CONFIGS_WORKING_DIR}" || { ERROR_OUTPUT="Could not cleanup the working directory"; return 38; }
+            echo "Cleaned the working directory."
+        fi
         return 0
     }
 
@@ -615,6 +619,9 @@ config-update () {
         create_config_symlinks
         return_code="$?"
     fi
+    # In a normal program run, the directory stack will contain the
+    # `${CONFIGS_WORKING_DIR}`
+    popd >/dev/null 2>&1
     cleanup || return_code="$?"
     if [[ -n "${ERROR_OUTPUT}" ]]; then
         echo -e "${BOLD_LIGHT_RED}ERROR:${NC} ${ERROR_OUTPUT}"

@@ -29,7 +29,7 @@ Git branches.
 
 #### Using zplug
 
-1.  Add `zplug "IngoHeimbach/config_update"` to your `.zshrc`.
+1.  Add `zplug "IngoMeyer441/config_update"` to your `.zshrc`.
 
 2.  Run
 
