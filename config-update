@@ -204,6 +204,10 @@ config-update () {
 
         return_code=0
 
+        # Cleanup the working copy directory in any case when this script exits
+        # `cleanup` can be called multiple times
+        trap cleanup EXIT
+
         [[ "${CONFIG_UPDATE_CONFIGS_REPO_URL}" != "" ]] || \
             { ERROR_OUTPUT="The variable ${BOLD_LIGHT_MAGENTA}CONFIG_UPDATE_CONFIGS_REPO_URL${NC} is not set."; \
               return 2; }
@@ -575,10 +579,10 @@ config-update () {
     }
 
     cleanup () {
-        popd >/dev/null 2>&1
-        rm -rf "${CONFIGS_WORKING_DIR}" || { ERROR_OUTPUT="Could not cleanup the working directory"; return 38; }
-
-        echo "Cleaned the working directory."
+        if [[ -d "${CONFIGS_WORKING_DIR}" ]]; then
+            rm -rf "${CONFIGS_WORKING_DIR}" || { ERROR_OUTPUT="Could not cleanup the working directory"; return 38; }
+            echo "Cleaned the working directory."
+        fi
         return 0
     }
 
@@ -615,6 +619,9 @@ config-update () {
         create_config_symlinks
         return_code="$?"
     fi
+    # In a normal program run, the directory stack will contain the
+    # `${CONFIGS_WORKING_DIR}`
+    popd >/dev/null 2>&1
     cleanup || return_code="$?"
     if [[ -n "${ERROR_OUTPUT}" ]]; then
         echo -e "${BOLD_LIGHT_RED}ERROR:${NC} ${ERROR_OUTPUT}"
